@@ -1,4 +1,4 @@
-# Vevor-BLE-ESPHOME
+# Vevor-BLE-ESPHOME FRENCH VERSION FORKED FROM @Knutnoh TANKS FOR YOUR JOB
 
 # ESPHome – Vevor Diesel Standheizung (BLE)
 
