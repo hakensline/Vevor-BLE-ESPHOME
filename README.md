@@ -7,8 +7,6 @@ Ce chauffage peut ainsi être facilement contrôlé et surveillé via Home Assis
 
 ---
 
-## Différences à [Bruciatore_BLE](https://github.com/edwardtfn/Bruciatore_BLE)
-
 Cette implémentation fonctionne avec **trois UUIDs**:
 
 - `fff0` → Service UUID  
