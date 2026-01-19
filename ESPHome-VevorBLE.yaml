@@ -1,33 +1,28 @@
 # ============================================
-# VEVOR BLE Diesel Heater - ESPHome Configuration
+# Chauffage Diesel VEVOR BLE - Configuration ESPHome
 # ============================================
 # 
-# WICHTIG: Vor der Nutzung anpassen!
-# 1. Ersetze die MAC-Adresse mit deiner Heizungs-MAC
-# 2. Ändere den Gerätenamen wenn gewünscht
-# 3. Erstelle eine secrets.yaml mit WiFi-Daten
-#
-# MAC-Adresse deiner Heizung findest du mit:
-# - BLE Scanner App (z.B. "nRF Connect")
-# - ESPHome BLE Tracker Log
+# IMPORTANT : À ajuster avant utilisation !
+# 1. Remplace l'adresse MAC par celle de ton chauffage
+# 2. Change le nom de l'appareil si souhaité
+# 3. Crée un fichier secrets.yaml avec tes identifiants WiFi
 # ============================================
 
 substitutions:
-  # WICHTIG: Hier deine BLE Heizungs-MAC-Adresse eintragen!
-  heater_mac: "XX:XX:XX:XX:XX:XX"  # <-- ANPASSEN!
+  # IMPORTANT : Entre l'adresse MAC BLE de ton chauffage ici !
+  heater_mac: "XX:XX:XX:XX:XX:XX"  # <-- À MODIFIER !
   
-  # Optional: Gerätenamen anpassen
   name: bt-vevor-ble
-  friendly_name: Diesel Standheizung
+  friendly_name: Chauffage Diesel
   
-  # BLE Service UUIDs (normalerweise identisch für alle VEVOR Heizungen)
+  # UUIDs du service BLE
   service_uuid: "0000fff0-0000-1000-8000-00805f9b34fb"
   char_fff1_uuid: "0000fff1-0000-1000-8000-00805f9b34fb"
   char_fff2_uuid: "0000fff2-0000-1000-8000-00805f9b34fb"
 
 esphome:
   name: ${name}
-  name_add_mac_suffix: true  # Fügt automatisch MAC-Suffix hinzu für Eindeutigkeit
+  name_add_mac_suffix: true
   friendly_name: ${friendly_name}
   min_version: 2025.9.3
   project:
@@ -84,16 +79,16 @@ wifi:
     password: "12345678"
 
 globals:
-  - id: ble_verbunden
+  - id: ble_connecte
     type: bool
     initial_value: 'false'
-  - id: aktueller_modus
+  - id: mode_actuel
     type: int
     initial_value: '1'
-  - id: command_aktiv
+  - id: commande_active
     type: bool
     initial_value: 'false'
-  - id: letzter_befehl_zeit
+  - id: temps_derniere_commande
     type: unsigned long
     initial_value: '0'
 
@@ -102,10 +97,10 @@ script:
     parameters:
       cmd: int
     then:
-      - lambda: 'id(command_aktiv) = true;'
+      - lambda: 'id(commande_active) = true;'
       - delay: 100ms
       - ble_client.ble_write:
-          id: heizung_ble
+          id: chauffage_ble
           service_uuid: ${service_uuid}
           characteristic_uuid: ${char_fff2_uuid}
           value: !lambda |-
@@ -113,14 +108,14 @@ script:
             return {0xBA, 0xAB, 0x04, 0xBB, (uint8_t)cmd, 0x00, 0x00, checksum};
       - delay: 500ms
       - ble_client.ble_write:
-          id: heizung_ble
+          id: chauffage_ble
           service_uuid: ${service_uuid}
           characteristic_uuid: ${char_fff2_uuid}
           value: [0xBA, 0xAB, 0x04, 0xCC, 0x00, 0x00, 0x00, 0x35]
       - delay: 500ms
       - lambda: |-
-          id(command_aktiv) = false;
-          id(letzter_befehl_zeit) = millis();
+          id(commande_active) = false;
+          id(temps_derniere_commande) = millis();
 
 interval:
   - interval: 5s
@@ -128,116 +123,116 @@ interval:
       - if:
           condition:
             lambda: |-
-              return id(ble_verbunden) && 
-                     !id(command_aktiv) && 
-                     (millis() - id(letzter_befehl_zeit) > 2000);
+              return id(ble_connecte) && 
+                     !id(commande_active) && 
+                     (millis() - id(temps_derniere_commande) > 2000);
           then:
             - ble_client.ble_write:
-                id: heizung_ble
+                id: chauffage_ble
                 service_uuid: ${service_uuid}
                 characteristic_uuid: ${char_fff2_uuid}
                 value: [0xBA, 0xAB, 0x04, 0xCC, 0x00, 0x00, 0x00, 0x35]
 
 ble_client:
   - mac_address: ${heater_mac}
-    id: heizung_ble
+    id: chauffage_ble
     on_connect:
-      - lambda: 'id(ble_verbunden) = true;'
-      - logger.log: "BLE Verbunden"
+      - lambda: 'id(ble_connecte) = true;'
+      - logger.log: "BLE Connecté"
       - delay: 2s
       - ble_client.ble_write:
-          id: heizung_ble
+          id: chauffage_ble
           service_uuid: ${service_uuid}
           characteristic_uuid: ${char_fff2_uuid}
           value: [0xBA, 0xAB, 0x04, 0xCC, 0x00, 0x00, 0x00, 0x35]
           
     on_disconnect:
-      - lambda: 'id(ble_verbunden) = false;'
-      - logger.log: "BLE Getrennt"
+      - lambda: 'id(ble_connecte) = false;'
+      - logger.log: "BLE Déconnecté"
 
 text_sensor:
   - platform: template
-    name: "Betriebsmodus"
-    id: betriebsmodus_text
+    name: "Mode de fonctionnement"
+    id: mode_fonctionnement_text
 
   - platform: template
-    name: "Heizungsstatus"
-    id: heizung_status_text
+    name: "Statut du chauffage"
+    id: statut_chauffage_text
 
 binary_sensor:
   - platform: template
-    name: "Heizung Status"
-    id: heizung_an_sensor
+    name: "État Chauffage"
+    id: chauffage_actif_sensor
 
 sensor:
   - platform: template
-    name: "Zielwert"
-    id: zielwert
+    name: "Valeur cible"
+    id: valeur_cible
     accuracy_decimals: 0
 
   - platform: template
-    name: "Raumtemperatur"
-    id: raumtemperatur
+    name: "Température ambiante"
+    id: temperature_ambiante
     unit_of_measurement: "°C"
     accuracy_decimals: 1
 
   - platform: template
-    name: "Batteriespannung"
-    id: batteriespannung
+    name: "Tension batterie"
+    id: tension_batterie
     unit_of_measurement: "V"
     accuracy_decimals: 1
     device_class: voltage
 
   - platform: template
-    name: "Schalentemperatur"
-    id: schalentemperatur
+    name: "Température corps"
+    id: temperature_corps
     unit_of_measurement: "°C"
     accuracy_decimals: 0
 
   - platform: ble_client
     type: characteristic
-    id: ble_antwort
-    ble_client_id: heizung_ble
+    id: ble_reponse
+    ble_client_id: chauffage_ble
     service_uuid: ${service_uuid}
     characteristic_uuid: ${char_fff1_uuid}
-    name: "BLE Rohdaten"
+    name: "Données brutes BLE"
     notify: true
     lambda: |-
       if (x.size() >= 21 && x[0] == 0xAB && x[1] == 0xBA) {
-        uint8_t strom = x[4];
-        uint8_t modus_flag = x[5];
-        uint8_t ziel = x[6];
-        uint8_t betrieb_zustand = x[7];
-        uint8_t spannung = x[9];
-        float raumtemp = x[11] / 2.2;
-        uint8_t schalentemp = x[13];
+        uint8_t courant = x[4];
+        uint8_t mode_flag = x[5];
+        uint8_t cible = x[6];
+        uint8_t etat_fonct = x[7];
+        uint8_t tension = x[9];
+        float temp_amb = x[11] / 2.2;
+        uint8_t temp_corps = x[13];
         
-        const char* zustand_namen[] = {"Bereit", "Aufwärmen", "Selbsttest", "Zündung", "Heizen", "Herunterfahren"};
-        const char* strom_status = (strom == 0x00) ? "AUS" : (strom == 0x01) ? "EIN" : "Kühlphase";
+        const char* noms_etats[] = {"Prêt", "Préchauffage", "Auto-test", "Allumage", "Chauffage", "Arrêt en cours"};
+        const char* statut_courant = (courant == 0x00) ? "ÉTEINT" : (courant == 0x01) ? "ALLUMÉ" : "Refroidissement";
         
-        ESP_LOGW("BLE", "Strom: %s | Modus: %s | Ziel: %d", strom_status, modus_flag ? "Automatik" : "Manuell", ziel);
+        ESP_LOGW("BLE", "État: %s | Mode: %s | Cible: %d", statut_courant, mode_flag ? "Automatique" : "Manuel", cible);
         
-        id(heizung_an_sensor).publish_state(strom == 0x01);
-        id(heizung_schalter).publish_state(strom == 0x01);
-        id(aktueller_modus) = modus_flag;
-        id(zielwert).publish_state(ziel);
-        id(raumtemperatur).publish_state(raumtemp);
-        id(batteriespannung).publish_state(spannung);
-        id(schalentemperatur).publish_state(schalentemp);
-        id(betriebsmodus_text).publish_state(modus_flag ? "Automatik" : "Manuell");
+        id(chauffage_actif_sensor).publish_state(courant == 0x01);
+        id(interrupteur_chauffage).publish_state(courant == 0x01);
+        id(mode_actuel) = mode_flag;
+        id(valeur_cible).publish_state(cible);
+        id(temperature_ambiante).publish_state(temp_amb);
+        id(tension_batterie).publish_state(tension);
+        id(temperature_corps).publish_state(temp_corps);
+        id(mode_fonctionnement_text).publish_state(mode_flag ? "Automatique" : "Manuel");
         
-        std::string status_text = strom_status;
-        if (strom == 0x01 && betrieb_zustand < 6) {
-          status_text = status_text + " - " + zustand_namen[betrieb_zustand];
+        std::string texte_complet = statut_courant;
+        if (courant == 0x01 && etat_fonct < 6) {
+          texte_complet = texte_complet + " - " + noms_etats[etat_fonct];
         }
-        id(heizung_status_text).publish_state(status_text);
+        id(statut_chauffage_text).publish_state(texte_complet);
       }
       return x.size();
 
 switch:
   - platform: template
-    name: "Heizung Ein/Aus"
-    id: heizung_schalter
+    name: "Chauffage On/Off"
+    id: interrupteur_chauffage
     icon: "mdi:fire"
     optimistic: true
     turn_on_action:
@@ -250,8 +245,8 @@ switch:
           cmd: 0xA1
 
   - platform: template
-    name: "Lüfter"
-    id: luefter_modus
+    name: "Ventilateur"
+    id: mode_ventilateur
     icon: "mdi:fan"
     optimistic: true
     turn_on_action:
@@ -263,23 +258,9 @@ switch:
           id: send_command_safe
           cmd: 0xA4
 
-  - platform: template
-    name: "Höhenmodus"
-    id: hoehenmodus
-    icon: "mdi:mountain"
-    optimistic: true
-    turn_on_action:
-      - script.execute:
-          id: send_command_safe
-          cmd: 0xA5
-    turn_off_action:
-      - script.execute:
-          id: send_command_safe
-          cmd: 0xA5
-
 button:
   - platform: template
-    name: "Modus Wechseln"
+    name: "Changer de Mode"
     icon: "mdi:swap-horizontal"
     on_press:
       - script.execute:
@@ -287,109 +268,56 @@ button:
           cmd: 0xAD
 
   - platform: template
-    name: "Temperatur +"
+    name: "Température +"
     icon: "mdi:thermometer-plus"
     on_press:
       - if:
           condition:
-            lambda: 'return id(aktueller_modus) == 1;'
+            lambda: 'return id(mode_actuel) == 1;'
           then:
             - script.execute:
                 id: send_command_safe
                 cmd: 0xA2
 
   - platform: template
-    name: "Temperatur -"
-    icon: "mdi:thermometer-minus"
-    on_press:
-      - if:
-          condition:
-            lambda: 'return id(aktueller_modus) == 1;'
-          then:
-            - script.execute:
-                id: send_command_safe
-                cmd: 0xA3
-
-  - platform: template
-    name: "Gebläse +"
+    name: "Puissance +"
     icon: "mdi:fan-plus"
     on_press:
       - if:
           condition:
-            lambda: 'return id(aktueller_modus) == 0;'
+            lambda: 'return id(mode_actuel) == 0;'
           then:
             - script.execute:
                 id: send_command_safe
                 cmd: 0xA2
 
-  - platform: template
-    name: "Gebläse -"
-    icon: "mdi:fan-minus"
-    on_press:
-      - if:
-          condition:
-            lambda: 'return id(aktueller_modus) == 0;'
-          then:
-            - script.execute:
-                id: send_command_safe
-                cmd: 0xA3
-
 number:
   - platform: template
-    name: "Zieltemperatur"
-    id: temperatur_slider
+    name: "Température Cible"
+    id: slider_temperature
     min_value: 8
     max_value: 36
     step: 1
     unit_of_measurement: "°C"
     mode: slider
     optimistic: false
-    lambda: 'return (id(aktueller_modus) == 1) ? id(zielwert).state : (float)NAN;'
+    lambda: 'return (id(mode_actuel) == 1) ? id(valeur_cible).state : (float)NAN;'
     set_action:
       - if:
           condition:
-            lambda: 'return id(aktueller_modus) == 1 && (int)x != (int)id(zielwert).state;'
+            lambda: 'return id(mode_actuel) == 1 && (int)x != (int)id(valeur_cible).state;'
           then:
-            - lambda: 'id(command_aktiv) = true;'
+            - lambda: 'id(commande_active) = true;'
             - repeat:
-                count: !lambda 'return abs((int)x - (int)id(zielwert).state);'
+                count: !lambda 'return abs((int)x - (int)id(valeur_cible).state);'
                 then:
                   - ble_client.ble_write:
-                      id: heizung_ble
+                      id: chauffage_ble
                       service_uuid: ${service_uuid}
                       characteristic_uuid: ${char_fff2_uuid}
-                      value: !lambda 'return ((int)x > (int)id(zielwert).state) ? std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA2, 0x00, 0x00, 0xC6} : std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA3, 0x00, 0x00, 0xC7};'
+                      value: !lambda 'return ((int)x > (int)id(valeur_cible).state) ? std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA2, 0x00, 0x00, 0xC6} : std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA3, 0x00, 0x00, 0xC7};'
                   - delay: 600ms
             - delay: 500ms
             - lambda: |-
-                id(command_aktiv) = false;
-                id(letzter_befehl_zeit) = millis();
-
-  - platform: template
-    name: "Gebläsestufe"
-    id: level_slider
-    min_value: 1
-    max_value: 6
-    step: 1
-    mode: slider
-    optimistic: false
-    lambda: 'return (id(aktueller_modus) == 0) ? id(zielwert).state : (float)NAN;'
-    set_action:
-      - if:
-          condition:
-            lambda: 'return id(aktueller_modus) == 0 && (int)x != (int)id(zielwert).state;'
-          then:
-            - lambda: 'id(command_aktiv) = true;'
-            - repeat:
-                count: !lambda 'return abs((int)x - (int)id(zielwert).state);'
-                then:
-                  - ble_client.ble_write:
-                      id: heizung_ble
-                      service_uuid: ${service_uuid}
-                      characteristic_uuid: ${char_fff2_uuid}
-                      value: !lambda 'return ((int)x > (int)id(zielwert).state) ? std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA2, 0x00, 0x00, 0xC6} : std::vector<uint8_t>{0xBA, 0xAB, 0x04, 0xBB, 0xA3, 0x00, 0x00, 0xC7};'
-                  - delay: 600ms
-            - delay: 500ms
-            - lambda: |-
-                id(command_aktiv) = false;
-                id(letzter_befehl_zeit) = millis();
+                id(commande_active) = false;
+                id(temps_derniere_commande) = millis();
